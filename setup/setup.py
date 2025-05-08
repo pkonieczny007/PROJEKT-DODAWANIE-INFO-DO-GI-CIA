@@ -50,7 +50,7 @@ def main():
     unzip_repo()
     prepare_folders()
     copy_project_files()
-    create_requirements()
+    #create_requirements()
     move_installer()
     clean_up()
     print("✅ Instalacja zakończona pomyślnie.")
