@@ -16,10 +16,16 @@ DOMYSLNE = {
     "EXCEL_FILE": "nazwa_pliku.xlsx"
 }
 
+SEP = ', '
+RYSUNKI_DIR = 'Rysunki'
+MISSING_FILE = 'brak_rysunku_pdf.txt'
+
+
 def zapisz_ustawienia(ust):
     with open(USTAWIENIA_FILE, "w", encoding="utf-8") as f:
         for k, v in ust.items():
             f.write(f"{k}={v}\n")
+
 
 def wczytaj_ustawienia():
     if not os.path.exists(USTAWIENIA_FILE):
@@ -33,6 +39,7 @@ def wczytaj_ustawienia():
                 ust[k] = int(v) if k.startswith("OFFSET") or k == "FONT_SIZE" else v
     return ust
 
+
 def menu_startowe(ust):
     print("=== MENU KONFIGURACJI ===")
     try:
@@ -45,19 +52,27 @@ def menu_startowe(ust):
     zapisz_ustawienia(ust)
     return ust
 
-# ---------- STAŁE ----------------------------------------------------------
-
-RYSUNKI_DIR    = 'Rysunki'
-MISSING_FILE   = 'brak_rysunku_pdf.txt'
-SEP            = ', '
 
 # ---------- FUNKCJE --------------------------------------------------------
 
 def build_line(row: pd.Series, skip: str = 'Rysunek') -> str:
-    return SEP.join(
-        str(v).strip() for k, v in row.items()
-        if k != skip and k != 'korekta' and pd.notna(v) and str(v).strip()
-    )
+    """Buduje pojedynczą linię tekstu z wartości kolumn ≠ skip."""
+    result = []
+    for k, v in row.items():
+        if k == skip or k.lower() == 'korekta' or pd.isna(v):
+            continue
+        val = str(v).strip()
+        key = k.lower().strip()
+
+        if key in ('anz.', 'anz', 'anzahl', 'szt'):
+            val += 'szt'
+        elif key in ('posn', 'poz', 'pos', 'pozycja'):
+            val = 'p' + val
+
+        result.append(val)
+
+    return SEP.join(result)
+
 
 def collect_rows(df: pd.DataFrame) -> dict:
     base_dir = os.path.join(os.getcwd(), RYSUNKI_DIR)
@@ -67,7 +82,7 @@ def collect_rows(df: pd.DataFrame) -> dict:
         line = build_line(row)
         if base not in result:
             exact = glob.glob(os.path.join(base_dir, f'{base}.pdf'))
-            ext   = glob.glob(os.path.join(base_dir, f'{base}_*.pdf'))
+            ext = glob.glob(os.path.join(base_dir, f'{base}_*.pdf'))
             result[base] = {
                 'pdf': exact[0] if exact else (ext[0] if ext else None),
                 'lines': []
@@ -76,6 +91,7 @@ def collect_rows(df: pd.DataFrame) -> dict:
             korekta = row.get("korekta", "")
             result[base]['lines'].append((line, korekta))
     return result
+
 
 def parse_korekta(korekta: str) -> tuple[int, int]:
     dx = dy = 0
@@ -88,6 +104,7 @@ def parse_korekta(korekta: str) -> tuple[int, int]:
             if f.startswith("D"): dy += int(f[1:])
     return dx, dy
 
+
 def write_lines_to_pdf(src_pdf: str, dst_pdf: str, lines: list[tuple[str, str]], font_size: int, offset_x: int, offset_y: int):
     with fitz.open(src_pdf) as doc:
         page = doc[0]
@@ -99,6 +116,7 @@ def write_lines_to_pdf(src_pdf: str, dst_pdf: str, lines: list[tuple[str, str]],
             y = start_y + idx * spacing + dy
             page.insert_text((x, y), txt, fontsize=font_size, color=(0, 0, 0))
         doc.save(dst_pdf)
+
 
 # ---------- GŁÓWNA FUNKCJA -------------------------------------------------
 
@@ -127,6 +145,7 @@ def main():
                 f.write(f'{m}\n')
         print(f'\n⚠  Brak {len(missing)} PDF-ów – lista w {MISSING_FILE}')
     print('\nGotowe!')
+
 
 if __name__ == '__main__':
     main()
